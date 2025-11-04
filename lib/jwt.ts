@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken"
 
-const SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required")
+}
+
+const SECRET = process.env.JWT_SECRET
 
 export interface JWTPayload {
   id: number
