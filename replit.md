@@ -53,6 +53,8 @@ Preferred communication style: Simple, everyday language.
 - SQL queries executed through `/lib/db.ts` wrapper
 - Database schema includes: Users, Services, Bookings, Reviews tables
 - Support for file uploads stored as base64 data URLs
+- **Transaction support**: Custom transaction helper with BEGIN/COMMIT/ROLLBACK for atomic operations
+- **Concurrency control**: Row-level locking via SELECT FOR UPDATE to prevent race conditions
 
 **Authentication & Authorization**:
 - JWT-based authentication with 7-day token expiration
@@ -87,9 +89,11 @@ Preferred communication style: Simple, everyday language.
 
 **Booking System**:
 - Real-time availability checking to prevent double-booking
+- **Race condition protection**: Database transactions with row-level locking (SELECT FOR UPDATE) ensure simultaneous booking attempts for the same time slot are serialized, preventing concurrent double-bookings
 - Booking statuses: pending, confirmed, cancelled, completed
 - Provider and user booking views with different perspectives
 - Total earnings calculated from completed bookings for providers
+- 1-hour booking windows to manage time slot reservations
 
 **Review & Rating System**:
 - Reviews only allowed for completed bookings
