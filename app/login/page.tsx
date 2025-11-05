@@ -26,7 +26,14 @@ export default function LoginPage() {
     try {
       await login(email, password)
       addToast("Login successful!", "success")
-      router.push("/services")
+      
+      const { user } = useAuthStore.getState()
+      
+      if (user?.role === "provider") {
+        router.push("/provider/dashboard")
+      } else {
+        router.push("/services")
+      }
     } catch (err: any) {
       const errorMessage = err.message || "Login failed. Please check your credentials."
       setError(errorMessage)
