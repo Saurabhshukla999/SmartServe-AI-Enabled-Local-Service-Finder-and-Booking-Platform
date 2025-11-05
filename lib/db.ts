@@ -15,4 +15,24 @@ export async function query(text: string, params: any[] = []) {
   }
 }
 
+export async function transaction<T>(
+  callback: (txQuery: (text: string, params?: any[]) => Promise<any>) => Promise<T>
+): Promise<T> {
+  try {
+    await sql("BEGIN")
+    
+    const txQuery = async (text: string, params: any[] = []) => {
+      return await sql(text, params)
+    }
+    
+    const result = await callback(txQuery)
+    await sql("COMMIT")
+    return result
+  } catch (error) {
+    await sql("ROLLBACK")
+    console.error("[v0] Transaction error:", error)
+    throw error
+  }
+}
+
 export default sql

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { query, transaction } from "@/lib/db"
 import { bookingCreateSchema } from "@/lib/validation"
 import { authMiddleware } from "@/lib/auth-middleware"
 
@@ -10,53 +10,61 @@ export async function POST(req: NextRequest) {
       const body = await req.json()
       const validatedData = bookingCreateSchema.parse(body)
 
-      // Verify service exists and get provider info
-      const serviceSql = `SELECT id, "providerId" FROM "Service" WHERE id = $1`
-      const services = await query(serviceSql, [validatedData.serviceId])
+      const result = await transaction(async (txQuery) => {
+        const serviceSql = `SELECT id, "providerId" FROM "Service" WHERE id = $1 FOR UPDATE`
+        const services = await txQuery(serviceSql, [validatedData.serviceId])
 
-      if (services.length === 0) {
-        return NextResponse.json({ error: "Service not found" }, { status: 404 })
-      }
+        if (services.length === 0) {
+          throw new Error("Service not found")
+        }
 
-      const service = services[0]
+        const bookingWindowStart = new Date(validatedData.datetime)
+        const bookingWindowEnd = new Date(new Date(validatedData.datetime).getTime() + 60 * 60 * 1000)
 
-      // Check for double-booking: ensure provider doesn't have overlapping bookings
-      // Using 1-hour booking window by default
-      const bookingWindowStart = new Date(validatedData.datetime)
-      const bookingWindowEnd = new Date(new Date(validatedData.datetime).getTime() + 60 * 60 * 1000)
+        const conflictSql = `
+          SELECT id
+          FROM "Booking"
+          WHERE "serviceId" = $1 
+          AND status IN ('pending', 'confirmed')
+          AND datetime >= $2 AND datetime < $3
+          FOR UPDATE
+        `
 
-      const conflictSql = `
-        SELECT COUNT(*) as count
-        FROM "Booking"
-        WHERE "serviceId" = $1 
-        AND status IN ('pending', 'confirmed')
-        AND datetime >= $2 AND datetime < $3
-      `
+        const conflicts = await txQuery(conflictSql, [
+          validatedData.serviceId,
+          bookingWindowStart.toISOString(),
+          bookingWindowEnd.toISOString(),
+        ])
 
-      const conflicts = await query(conflictSql, [
-        validatedData.serviceId,
-        bookingWindowStart.toISOString(),
-        bookingWindowEnd.toISOString(),
-      ])
+        if (conflicts.length > 0) {
+          throw new Error("SLOT_UNAVAILABLE")
+        }
 
-      if (conflicts[0].count > 0) {
-        return NextResponse.json({ error: "This time slot is not available", conflict: true }, { status: 409 })
-      }
+        const createSql = `
+          INSERT INTO "Booking" (
+            "userId", "serviceId", datetime, quantity, status, "createdAt", "updatedAt"
+          ) VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
+          RETURNING *
+        `
 
-      // Create booking
-      const createSql = `
-        INSERT INTO "Booking" (
-          "userId", "serviceId", datetime, quantity, status, "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
-        RETURNING *
-      `
+        const params = [user.id, validatedData.serviceId, validatedData.datetime, validatedData.quantity]
+        const booking = await txQuery(createSql, params)
 
-      const params = [user.id, validatedData.serviceId, validatedData.datetime, validatedData.quantity]
-      const result = await query(createSql, params)
+        return booking[0]
+      })
 
-      return NextResponse.json(result[0], { status: 201 })
+      return NextResponse.json(result, { status: 201 })
     } catch (error) {
       console.error("[v0] POST /api/bookings error:", error)
+      
+      if (error instanceof Error && error.message === "SLOT_UNAVAILABLE") {
+        return NextResponse.json({ error: "This time slot is not available", conflict: true }, { status: 409 })
+      }
+      
+      if (error instanceof Error && error.message === "Service not found") {
+        return NextResponse.json({ error: "Service not found" }, { status: 404 })
+      }
+      
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "Failed to create booking" },
         { status: 400 },
