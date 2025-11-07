@@ -20,6 +20,7 @@ export default function BookingsPage() {
   const { user } = useAuthStore()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -31,10 +32,18 @@ export default function BookingsPage() {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         })
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch bookings")
+        }
+        
         const data = await response.json()
         setBookings(data.data || [])
-      } catch (error) {
-        console.error("Error fetching bookings:", error)
+        setError(null)
+      } catch (err) {
+        console.error("Error fetching bookings:", err)
+        setError(err instanceof Error ? err.message : "Failed to load bookings. Please try again.")
+        setBookings([])
       } finally {
         setLoading(false)
       }
@@ -95,7 +104,17 @@ export default function BookingsPage() {
             </button>
           </div>
 
-          {formattedBookings.length > 0 ? (
+          {error ? (
+            <div className="text-center py-12 border border-destructive bg-destructive/10 rounded-lg">
+              <p className="text-destructive text-lg mb-4">{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition"
+              >
+                Retry
+              </button>
+            </div>
+          ) : formattedBookings.length > 0 ? (
             <BookingsTable bookings={formattedBookings} />
           ) : (
             <div className="text-center py-12 border border-border rounded-lg">

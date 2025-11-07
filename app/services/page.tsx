@@ -15,8 +15,8 @@ interface Service {
   category: string
   city: string
   price: number
-  avgrating: number
-  reviewcount: number
+  avgRating: number
+  reviewCount: number
   providerId: number
   images?: string[]
 }
@@ -113,8 +113,8 @@ export default function ServicesPage() {
                   id={service.id.toString()}
                   title={service.title}
                   provider="Service Provider"
-                  rating={Number(service.avgrating) || 0}
-                  reviews={Number(service.reviewcount) || 0}
+                  rating={Number(service.avgRating) || 0}
+                  reviews={Number(service.reviewCount) || 0}
                   price={Number(service.price)}
                   location={service.city}
                   category={service.category}
