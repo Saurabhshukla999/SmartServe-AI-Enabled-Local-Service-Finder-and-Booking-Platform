@@ -1,100 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { NavBar } from "@/components/nav-bar"
 import { Footer } from "@/components/footer"
 import { ServiceCard } from "@/components/service-card"
 import { FormInput } from "@/components/form-input"
 import { Search, Filter } from "lucide-react"
+import { useAuthStore } from "@/lib/store"
 
-// Static data
-const SERVICES = [
-  {
-    id: "1",
-    title: "Plumbing Repair",
-    provider: "John Smith",
-    rating: 4.8,
-    reviews: 24,
-    price: 85,
-    location: "New York, NY",
-    duration: "1-2 hours",
-    category: "Home Services",
-  },
-  {
-    id: "2",
-    title: "Web Design",
-    provider: "Sarah Johnson",
-    rating: 5.0,
-    reviews: 18,
-    price: 120,
-    location: "New York, NY",
-    duration: "1 week",
-    category: "Professional",
-  },
-  {
-    id: "3",
-    title: "Piano Lessons",
-    provider: "Mike Chen",
-    rating: 4.9,
-    reviews: 32,
-    price: 60,
-    location: "Brooklyn, NY",
-    duration: "1 hour",
-    category: "Education",
-  },
-  {
-    id: "4",
-    title: "Personal Training",
-    provider: "Emma Davis",
-    rating: 4.7,
-    reviews: 15,
-    price: 75,
-    location: "Manhattan, NY",
-    duration: "1 hour",
-    category: "Fitness",
-  },
-  {
-    id: "5",
-    title: "House Cleaning",
-    provider: "Maria Rodriguez",
-    rating: 4.9,
-    reviews: 41,
-    price: 100,
-    location: "New York, NY",
-    duration: "3 hours",
-    category: "Home Services",
-  },
-  {
-    id: "6",
-    title: "Photography",
-    provider: "Alex Taylor",
-    rating: 5.0,
-    reviews: 22,
-    price: 200,
-    location: "Queens, NY",
-    duration: "2-3 hours",
-    category: "Creative",
-  },
-]
+interface Service {
+  id: number
+  title: string
+  description: string
+  category: string
+  city: string
+  price: number
+  avgrating: number
+  reviewcount: number
+  providerId: number
+  images?: string[]
+}
 
 export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [filteredServices, setFilteredServices] = useState(SERVICES)
+  const [services, setServices] = useState<Service[]>([])
+  const [filteredServices, setFilteredServices] = useState<Service[]>([])
+  const [loading, setLoading] = useState(true)
+  const { isAuthenticated } = useAuthStore()
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch("/api/services")
+        const data = await response.json()
+        setServices(data.data || [])
+        setFilteredServices(data.data || [])
+      } catch (error) {
+        console.error("Error fetching services:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchServices()
+  }, [])
 
   const handleSearch = (value: string) => {
     setSearchQuery(value)
-    const filtered = SERVICES.filter(
+    const filtered = services.filter(
       (service) =>
         service.title.toLowerCase().includes(value.toLowerCase()) ||
-        service.provider.toLowerCase().includes(value.toLowerCase()) ||
+        service.city.toLowerCase().includes(value.toLowerCase()) ||
         service.category.toLowerCase().includes(value.toLowerCase()),
     )
     setFilteredServices(filtered)
   }
 
+  if (loading) {
+    return (
+      <>
+        <NavBar isAuthenticated={isAuthenticated} />
+        <main className="min-h-screen">
+          <div className="container-max py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">Loading services...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    )
+  }
+
   return (
     <>
-      <NavBar isAuthenticated={false} />
+      <NavBar isAuthenticated={isAuthenticated} />
       <main className="min-h-screen">
         <div className="container-max py-12">
           {/* Header */}
@@ -128,12 +108,27 @@ export default function ServicesPage() {
           {filteredServices.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredServices.map((service) => (
-                <ServiceCard key={service.id} {...service} />
+                <ServiceCard 
+                  key={service.id} 
+                  id={service.id.toString()}
+                  title={service.title}
+                  provider="Service Provider"
+                  rating={Number(service.avgrating) || 0}
+                  reviews={Number(service.reviewcount) || 0}
+                  price={Number(service.price)}
+                  location={service.city}
+                  category={service.category}
+                  duration="Contact for details"
+                />
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg">No services found</p>
+              <p className="text-muted-foreground text-lg">
+                {services.length === 0 
+                  ? "No services available yet. Be the first provider to create one!" 
+                  : "No services found"}
+              </p>
             </div>
           )}
         </div>
