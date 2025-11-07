@@ -1,49 +1,79 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { NavBar } from "@/components/nav-bar"
 import { Footer } from "@/components/footer"
 import { BookingsTable } from "@/components/bookings-table"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useAuthStore } from "@/lib/store"
 
-// Static bookings data
-const BOOKINGS = [
-  {
-    id: "1",
-    service: "Plumbing Repair",
-    provider: "John Smith",
-    date: "2025-02-15",
-    time: "10:00 AM",
-    location: "New York, NY",
-    status: "upcoming" as const,
-    price: 85,
-  },
-  {
-    id: "2",
-    service: "Piano Lessons",
-    provider: "Mike Chen",
-    date: "2025-02-10",
-    time: "2:00 PM",
-    location: "Brooklyn, NY",
-    status: "completed" as const,
-    price: 60,
-  },
-  {
-    id: "3",
-    service: "House Cleaning",
-    provider: "Maria Rodriguez",
-    date: "2025-02-08",
-    time: "9:00 AM",
-    location: "New York, NY",
-    status: "completed" as const,
-    price: 100,
-  },
-]
+interface Booking {
+  id: number
+  serviceTitle: string
+  userName: string
+  datetime: string
+  status: "pending" | "confirmed" | "cancelled" | "completed"
+  price: number
+}
 
 export default function BookingsPage() {
   const { user } = useAuthStore()
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!user) return
+
+      try {
+        const response = await fetch(`/api/bookings?userId=${user.id}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        })
+        const data = await response.json()
+        setBookings(data.data || [])
+      } catch (error) {
+        console.error("Error fetching bookings:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBookings()
+  }, [user])
 
   if (!user) return null
+
+  if (loading) {
+    return (
+      <ProtectedRoute requiredRole="user">
+        <NavBar isAuthenticated={true} userRole={user.role} />
+        <main className="min-h-screen">
+          <div className="container-max py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">Loading bookings...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </ProtectedRoute>
+    )
+  }
+
+  const formattedBookings = bookings.map((booking) => {
+    const datetime = new Date(booking.datetime)
+    return {
+      id: booking.id.toString(),
+      service: booking.serviceTitle,
+      provider: booking.userName,
+      date: datetime.toLocaleDateString(),
+      time: datetime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      location: "See service details",
+      status: booking.status === "confirmed" || booking.status === "pending" ? "upcoming" as const : booking.status as "completed" | "cancelled",
+      price: Number(booking.price),
+    }
+  })
 
   return (
     <ProtectedRoute requiredRole="user">
@@ -65,7 +95,13 @@ export default function BookingsPage() {
             </button>
           </div>
 
-          <BookingsTable bookings={BOOKINGS} />
+          {formattedBookings.length > 0 ? (
+            <BookingsTable bookings={formattedBookings} />
+          ) : (
+            <div className="text-center py-12 border border-border rounded-lg">
+              <p className="text-muted-foreground text-lg">No bookings yet. Browse services to make your first booking!</p>
+            </div>
+          )}
         </div>
       </main>
       <Footer />

@@ -1,53 +1,103 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
 import { Footer } from "@/components/footer"
 import { RatingStars } from "@/components/rating-stars"
 import { BookingModal } from "@/components/booking-modal"
 import { MapContainer } from "@/components/map-container"
 import { MapPin, Clock, User, MessageCircle, Share2 } from "lucide-react"
+import { useAuthStore } from "@/lib/store"
 
-// Mock service details
-const SERVICE_DETAILS = {
-  id: "1",
-  title: "Professional Plumbing Repair",
-  provider: "John Smith",
-  rating: 4.8,
-  reviews: 24,
-  price: 85,
-  location: "New York, NY",
-  latitude: 40.7128,
-  longitude: -74.006,
-  duration: "1-2 hours",
-  category: "Home Services",
-  description:
-    "Professional plumbing services with 15+ years of experience. I specialize in leak repairs, fixture installation, and emergency plumbing. Available 7 days a week.",
-  image: "/plumbing-service-call.png",
-  reviews_list: [
-    {
-      id: "1",
-      author: "Emma Wilson",
-      rating: 5,
-      date: "2025-01-15",
-      text: "Excellent work! Fixed the leak quickly and professionally.",
-    },
-    {
-      id: "2",
-      author: "Robert Brown",
-      rating: 4.5,
-      date: "2025-01-10",
-      text: "Great service, fair pricing. Would book again.",
-    },
-  ],
+interface Review {
+  id: number
+  rating: number
+  comment: string
+  userName: string
+  createdAt: string
+}
+
+interface ServiceDetails {
+  id: number
+  title: string
+  description: string
+  category: string
+  city: string
+  price: number
+  locationLat: number
+  locationLng: number
+  images?: string[]
+  providerName: string
+  avgRating: number
+  reviewCount: number
+  reviews: Review[]
 }
 
 export default function ServiceDetailsPage() {
+  const params = useParams()
   const [bookingOpen, setBookingOpen] = useState(false)
+  const [service, setService] = useState<ServiceDetails | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { isAuthenticated } = useAuthStore()
+
+  useEffect(() => {
+    const fetchService = async () => {
+      try {
+        const response = await fetch(`/api/services/${params.id}`)
+        if (!response.ok) {
+          throw new Error("Service not found")
+        }
+        const data = await response.json()
+        setService(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load service")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (params.id) {
+      fetchService()
+    }
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <>
+        <NavBar isAuthenticated={isAuthenticated} />
+        <main className="min-h-screen">
+          <div className="container-max py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">Loading service details...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    )
+  }
+
+  if (error || !service) {
+    return (
+      <>
+        <NavBar isAuthenticated={isAuthenticated} />
+        <main className="min-h-screen">
+          <div className="container-max py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">{error || "Service not found"}</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    )
+  }
 
   return (
     <>
-      <NavBar isAuthenticated={false} />
+      <NavBar isAuthenticated={isAuthenticated} />
       <main className="min-h-screen">
         <div className="container-max py-12">
           <div className="grid md:grid-cols-3 gap-12">
@@ -56,19 +106,19 @@ export default function ServiceDetailsPage() {
               {/* Image */}
               <div className="bg-muted rounded-lg h-96 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
-                  <div className="text-lg font-medium">{SERVICE_DETAILS.category}</div>
+                  <div className="text-lg font-medium">{service.category}</div>
                   <div className="text-sm mt-2">Service Image</div>
                 </div>
               </div>
 
               {/* Header Info */}
               <div>
-                <h1 className="text-4xl font-bold text-foreground mb-2">{SERVICE_DETAILS.title}</h1>
+                <h1 className="text-4xl font-bold text-foreground mb-2">{service.title}</h1>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="flex items-center">
-                    <RatingStars rating={SERVICE_DETAILS.rating} readonly />
-                    <span className="ml-2 font-semibold text-foreground">{SERVICE_DETAILS.rating}</span>
-                    <span className="text-muted-foreground ml-2">({SERVICE_DETAILS.reviews} reviews)</span>
+                    <RatingStars rating={Number(service.avgRating)} readonly />
+                    <span className="ml-2 font-semibold text-foreground">{Number(service.avgRating).toFixed(1)}</span>
+                    <span className="text-muted-foreground ml-2">({service.reviewCount} reviews)</span>
                   </div>
                 </div>
 
@@ -76,15 +126,15 @@ export default function ServiceDetailsPage() {
                 <div className="flex flex-wrap gap-6 py-4 border-y border-border">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock size={18} />
-                    <span>{SERVICE_DETAILS.duration}</span>
+                    <span>Contact for details</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin size={18} />
-                    <span>{SERVICE_DETAILS.location}</span>
+                    <span>{service.city}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <User size={18} />
-                    <span>{SERVICE_DETAILS.provider}</span>
+                    <span>{service.providerName}</span>
                   </div>
                 </div>
               </div>
@@ -92,14 +142,14 @@ export default function ServiceDetailsPage() {
               {/* Description */}
               <div>
                 <h2 className="text-2xl font-bold text-foreground mb-4">About This Service</h2>
-                <p className="text-muted-foreground text-lg leading-relaxed">{SERVICE_DETAILS.description}</p>
+                <p className="text-muted-foreground text-lg leading-relaxed">{service.description}</p>
               </div>
 
               {/* Provider Info */}
               <div className="bg-muted p-6 rounded-lg border border-border">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-foreground">{SERVICE_DETAILS.provider}</h3>
+                    <h3 className="text-xl font-bold text-foreground">{service.providerName}</h3>
                     <p className="text-muted-foreground">Trusted provider</p>
                   </div>
                 </div>
@@ -116,31 +166,39 @@ export default function ServiceDetailsPage() {
               </div>
 
               {/* Map */}
-              <div>
-                <h2 className="text-2xl font-bold text-foreground mb-4">Service Location</h2>
-                <MapContainer
-                  location={SERVICE_DETAILS.location}
-                  latitude={SERVICE_DETAILS.latitude}
-                  longitude={SERVICE_DETAILS.longitude}
-                />
-              </div>
+              {service.locationLat && service.locationLng && (
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground mb-4">Service Location</h2>
+                  <MapContainer
+                    location={service.city}
+                    latitude={service.locationLat}
+                    longitude={service.locationLng}
+                  />
+                </div>
+              )}
 
               {/* Reviews */}
               <div>
                 <h2 className="text-2xl font-bold text-foreground mb-4">Reviews</h2>
                 <div className="space-y-4">
-                  {SERVICE_DETAILS.reviews_list.map((review) => (
-                    <div key={review.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className="font-semibold text-foreground">{review.author}</h4>
-                          <p className="text-sm text-muted-foreground">{review.date}</p>
+                  {service.reviews && service.reviews.length > 0 ? (
+                    service.reviews.map((review) => (
+                      <div key={review.id} className="border border-border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h4 className="font-semibold text-foreground">{review.userName}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(review.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <RatingStars rating={review.rating} readonly size={14} />
                         </div>
-                        <RatingStars rating={review.rating} readonly size={14} />
+                        <p className="text-muted-foreground">{review.comment}</p>
                       </div>
-                      <p className="text-muted-foreground">{review.text}</p>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No reviews yet. Be the first to review!</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -150,7 +208,7 @@ export default function ServiceDetailsPage() {
               <div className="border border-border rounded-lg p-6 sticky top-20">
                 <div className="bg-muted p-6 rounded-lg mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Price per session</p>
-                  <p className="text-4xl font-bold text-primary mb-4">${SERVICE_DETAILS.price}</p>
+                  <p className="text-4xl font-bold text-primary mb-4">${Number(service.price).toFixed(2)}</p>
                 </div>
                 <button
                   onClick={() => setBookingOpen(true)}
@@ -169,9 +227,10 @@ export default function ServiceDetailsPage() {
       <BookingModal
         isOpen={bookingOpen}
         onClose={() => setBookingOpen(false)}
-        serviceTitle={SERVICE_DETAILS.title}
-        price={SERVICE_DETAILS.price}
-        provider={SERVICE_DETAILS.provider}
+        serviceTitle={service.title}
+        serviceId={service.id}
+        price={Number(service.price)}
+        provider={service.providerName}
       />
       <Footer />
     </>
